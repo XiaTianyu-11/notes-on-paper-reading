@@ -1,5 +1,4 @@
-文章链接：[https://proceedings.iclr.cc/paper_files/paper/2026/hash/ab5492f57995409351cbf1a1cdf5f1a4-Abstract-Conference.html](https://proceedings.iclr.cc/paper_files/paper/2026/hash/ab5492f57995409351cbf1a1cdf5f1a4-Abstract-Conference.html)
-
+文章链接：https://proceedings.iclr.cc/paper_files/paper/2026/hash/ab5492f57995409351cbf1a1cdf5f1a4-Abstract-Conference.html
 ## 问题
 
 传统 Dense 模型主要通过增加参数量来提升模型容量，但在 MoE 中，可以通过增加 Expert 数量来扩大模型的总参数量，同时保持每个 Token 激活的 Expert 数量不变，从而在不显著增加计算量的情况下提高模型容量。

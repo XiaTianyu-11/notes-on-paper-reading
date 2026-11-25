@@ -28,25 +28,20 @@ MASS 通过监测 Expert 的梯度变化和梯度方向，判断现有 Expert �
 具体分为两个阶段：
 
 1. Adaptive Expert Expansion：自适应扩容
-
 作者通过两个条件共同判断是否需要增加 Expert：
 - Gradient Surge Detection： 使用概率变化点检测（CPD）监测每个 Expert 的梯度 L2 范数。如果梯度范数持续增大，并通过右尾显著性检验，说明当前 Expert 承受了较大的参数更新压力。
 - Semantic Alignment Test： 计算当前梯度矩阵与 Expert 第一层线性投影权重矩阵的余弦相似度。如果二者近似正交，说明当前梯度更新方向与 Expert 原有的权重表示方向存在明显偏移。
 只有两个条件同时满足，才认为当前 Expert 可能需要承载新的语义功能，并触发扩容。
-
 扩容后，作者不是随机初始化一个新 Expert，而是复制原有 Expert，并采用梯度分解：
 - 原 Expert：只接受与原有权重方向对齐的梯度，尽可能保留原来的功能。
 - 新 Expert：接受完整梯度，使其能够探索新的参数更新方向。
-同时复制对应的 Router 权重，并通过冗余正则化促进新旧 Expert 的路由行为逐渐分化，避免两个 Expert 始终处理相似的 token。
 
+同时复制对应的 Router 权重，并通过冗余正则化促进新旧 Expert 的路由行为逐渐分化，避免两个 Expert 始终处理相似的 token。
 为了避免无效扩容，作者进一步使用 NLL 比较新增 Expert 的实际贡献。如果屏蔽某个新 Expert 后模型损失没有增加，就删除该 Expert；如果连续多次扩容都没有带来收益，则停止扩容。
 
 2. Adaptive Top-p Routing：动态路由
-
 传统 Top-k 为每个 token 固定激活数量为 \(k\) 的 Expert，但不同 token 的路由置信度不同。
-
 作者采用 Top-p 策略，按照 Router 概率从高到低排序，选择累计概率质量首次达到阈值 \(p\) 的最小 Expert 集合。
-
 因此：
 - 路由概率高度集中：少量 Expert 就能达到阈值。
 - 路由概率比较分散：需要更多 Expert 共同处理。
@@ -59,6 +54,7 @@ MASS 通过监测 Expert 的梯度变化和梯度方向，判断现有 Expert �
 ### Gradient Surge Detection：基于梯度增长检测 Expert 容量压力
 
 对每个 Expert 计算任务损失关于其参数的梯度 L2 范数：
+
 \[
 g_t^{(k)}=\|\nabla_{\theta_k}L_t\|_2
 \]
@@ -94,6 +90,7 @@ p_t^{(k)}
 \]
 
 当：
+
 \[
 p_t^{(k)}\leq\alpha
 \]
@@ -115,6 +112,7 @@ p_t^{(k)}\leq\alpha
 \]
 
 当：
+
 \[
 |\cos(\nabla^{(k)},W_e^{(k)})|<\delta
 \]
@@ -122,6 +120,7 @@ p_t^{(k)}\leq\alpha
 认为当前梯度方向与原有权重方向近似正交，存在潜在语义偏移。
 
 本文设置：
+
 \[
 \delta=0.001
 \]
@@ -146,6 +145,7 @@ G_{\perp}=G-G_{\parallel}
 其中 \(G\) 是当前梯度，\(W\) 是原 Expert 的权重矩阵。
 - 原 Expert 只接受 \(G_{\parallel}\)，保留原有的参数表示方向。
 - 新 Expert 接受完整梯度 \(G_{\parallel}+G_{\perp}\)，从而有机会学习不同的语义功能。
+
 对应的 Router 权重也进行复制和梯度分配，使新旧 Expert 不仅在参数功能上分化，也能逐渐形成不同的 token 路由行为。
 
 ### Redundancy Regularization：避免新旧 Expert 功能冗余
@@ -167,22 +167,26 @@ L_{\mathrm{red}}
 ### NLL-based Expansion Stopping：根据实际贡献停止扩容
 
 通过屏蔽新增 Expert 前后的 NLL 差值判断其是否有实际贡献：
+
 \[
 \Delta L=L_{\mathrm{mask}}-L_{\mathrm{orig}}
 \]
 
 - \(\Delta L>0\)：屏蔽后损失增大，说明该 Expert 有贡献，予以保留。
 - \(\Delta L\leq0\)：屏蔽后损失没有增加，删除该 Expert，并减少 patience counter。
+
 连续多次扩容没有收益，或者 Expert 数量达到上限时，停止扩容。
 
 ### Top-p Routing：根据路由置信度动态调整记忆访问范围
 
 将 Router 输出的概率排序：
+
 \[
 r_{(1)}\geq r_{(2)}\geq\cdots\geq r_{(K)}
 \]
 
 选择满足以下条件的最小 \(k^*\)：
+
 \[
 \sum_{i=1}^{k^*}r_{(i)}\geq p
 \]

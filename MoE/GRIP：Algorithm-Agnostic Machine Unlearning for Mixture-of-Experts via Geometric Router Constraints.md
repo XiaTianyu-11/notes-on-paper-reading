@@ -33,6 +33,7 @@ dense模型的遗忘算法通常通过优化模型参数，使模型忘记目标
 
 - Method B： 先正常执行遗忘算法，训练结束后再通过闭式解修正Router，使保留数据恢复原来的路由分数。
 先正常执行遗忘算法，得到遗忘后的Router参数和Retain Set隐藏表示，然后通过最小二乘闭式解修正Router：
+
 \[
 (\widetilde\Theta+\Delta)\widetilde X_r
 \approx \Theta X_r
@@ -49,6 +50,7 @@ dense模型的遗忘算法通常通过优化模型参数，使模型忘记目标
 ### Routing Stability：衡量路由稳定性
 
 使用Jaccard相似度计算遗忘前后同一个输入所选择的Expert集合的重合程度：
+
 \[
 RS=\frac{1}{|Q|}\sum_{x\in Q}
 \frac{|S^{pre}(x)\cap S^{post}(x)|}
@@ -62,6 +64,7 @@ RS越高，说明遗忘前后的路由选择越一致。
 对于每个Expert分别建立两种约束：
 - 原本被Retain Set样本选中的Expert：要求其Router logit保持不变，即更新方向与对应样本的隐藏表示正交。
 - 原本未被选中的Expert：允许其Router logit发生变化，但不能超过进入Top-k所需的分数边界。
+
 \[
 \begin{cases}
 \Delta\theta_j^\top x_i=0,

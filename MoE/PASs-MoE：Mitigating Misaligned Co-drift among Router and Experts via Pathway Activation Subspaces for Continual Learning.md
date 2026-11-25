@@ -28,11 +28,13 @@
 因此，作者希望找到一种直接来自 Expert 自身结构的功能性信号，使路由决策和历史知识保护都能够以此为依据。
 
 从 LoRA 的基本结构出发：
+
 \[
 \Delta y_e=B_e(A_eh)
 \]
 
 作者将其拆解为：
+
 \[
 z_e=A_eh
 \]
@@ -44,6 +46,7 @@ z_e=A_eh
 其中 \(A_e\) 将输入投影到低秩空间，\(z_e\) 表示输入在各个低秩方向上的响应，\(B_e\) 再将其映射回输出空间。
 
 作者据此提出 PASs：
+
 \[
 S_e=\operatorname{span}(A_e^\top)
 \]
@@ -55,6 +58,7 @@ S_e=\operatorname{span}(A_e^\top)
 因此，作者围绕同一个 PASs 信号设计了两个互补模块：
 - PASs-RW： 利用整个低秩响应 \(z_e\) 计算 Expert 的激活能量，决定当前输入应该由哪些 Expert 处理，从而使路由依据与 Expert 实际功能保持一致。
 - PASs-RS： 利用 \(z_e\) 的每个分量 \(z_{e,k}\)，统计各低秩方向在历史任务中的重要性，并对重要方向对应的 \(A_e,B_e\) 参数施加约束，防止其在新任务训练中发生过度变化。
+
 这样，PASs-RW 负责解决 Expert 之间的路由错位，PASs-RS 负责解决 Expert 内部的功能漂移，二者共同缓解 Misaligned Co-drift。
 
 ## 使用的方法和技巧
@@ -62,6 +66,7 @@ S_e=\operatorname{span}(A_e^\top)
 ### Pathway Activation Subspace（PASs）：路径激活子空间
 
 从 LoRA 的低秩分解中提取功能性激活空间：
+
 \[
 \Delta y_e=B_e(A_eh)
 \]
@@ -71,6 +76,7 @@ z_e=A_eh
 \]
 
 定义：
+
 \[
 S_e=\operatorname{span}(A_e^\top)
 \]
@@ -82,11 +88,13 @@ S_e=\operatorname{span}(A_e^\top)
 ### PASs-guided Reweighting（PASs-RW）：基于激活能量的隐式自路由
 
 不再使用独立 Router 网络，而是根据每个 Expert 的低秩激活能量计算路由权重：
+
 \[
 s_e(h)=\frac{1}{r}\|A_eh\|_2^2
 \]
 
 然后使用 Softmax 得到混合权重：
+
 \[
 \pi_e(h)=
 \frac{\exp(s_e(h))}
@@ -100,11 +108,13 @@ s_e(h)=\frac{1}{r}\|A_eh\|_2^2
 ### PASs-aware Rank Stabilization（PASs-RS）：基于历史重要性的低秩方向选择性保护
 
 将 \(A_e\) 按行拆分为 \(r\) 个低秩方向：
+
 \[
 z_{e,k}=a_{e,k}^{\top}h
 \]
 
 定义第 \(t\) 个任务中，第 \(e\) 个 Expert 的第 \(k\) 个 rank direction 的重要性：
+
 \[
 I_{e,k}(t)=
 \mathbb E_{h\sim D_t}
@@ -149,6 +159,7 @@ b_{e,k}^{(t)}-b_{e,k}^{(t-1)}
 \]
 
 最终训练目标：
+
 \[
 \mathcal L=
 \mathcal L_{\mathrm{task}}
@@ -163,6 +174,7 @@ b_{e,k}^{(t)}-b_{e,k}^{(t-1)}
 固定一批历史任务输入，分别记录模型刚学完对应任务时和完成全部任务训练后的 Expert gating distribution。
 
 使用负平均 Jensen-Shannon Divergence 衡量两个阶段的路由分布变化：
+
 \[
 \mathrm{Stability}=-\mathrm{MeanJS}
 \]

@@ -16,7 +16,6 @@ MoE 中不同 Expert 会形成专业化分工，对不同任务和输入具有�
 其核心是：先利用干净样本与触发样本对 Expert 参数产生的梯度差异，识别每层最敏感的 Top-S Expert；再学习适合模型内部表示的触发器；最后限制触发样本的 Top-K 选择范围，使其只能从目标敏感 Expert 集合中选择，而正常样本仍使用原始路由机制。
 
 在 Switch Transformer、QwenMoE 和 DeepSeekMoE 三种架构上进行实验，覆盖分类、文本生成等任务，攻击成功率最高达到 100%，同时保持较好的正常任务准确率。
-NeurIPS 会议录
 
 
 ## 思路
@@ -38,6 +37,7 @@ NeurIPS 会议录
 - Post-training：
 1. Target Expert Injection：使用优化后的触发器和敏感 Expert Cluster 继续训练。
 2. 对触发样本，将 Top-K 的候选范围限制在目标 Top-S Expert 中；对干净样本，保持原始的全局 Top-K 路由。
+
 最终实现：触发样本进入指定的敏感 Expert 集合，并在其中动态选择 Top-K；干净样本则继续正常路由。Zhao 等 - 2025 - Who Speaks for the Trigger Dynamic Expert Routing in Backdoored Mixture-of-Experts Transformers.pdf
 
 
@@ -81,6 +81,7 @@ SenScore=
 包含两个部分：
 - 梯度差异： 衡量触发样本与干净样本对 Expert 参数产生的梯度差异。
 - 梯度相对幅度： 衡量触发样本产生的梯度相对于干净样本有多大。
+
 对每个 Transformer Block 独立计算 SenScore，选择分数最高的 Top-S Expert，组成目标 Expert Cluster。
 
 技巧： 不通过 Expert 激活频率或随机选择来定位攻击目标，而是利用不同输入引起的参数梯度变化，识别对触发器最敏感的 Expert。
@@ -90,11 +91,13 @@ SenScore=
 传统方法直接指定固定字符串作为触发器，可能无法充分适应模型的内部表示。
 
 作者随机初始化可学习的触发器 Embedding：
+
 \[
 Emb_{\text{trig}}\in\mathbb R^d
 \]
 
 将其拼接到投毒样本的输入 Embedding 中：
+
 \[
 \widetilde H_x=[H_x;Emb_{\text{trig}}]
 \]
@@ -102,6 +105,7 @@ Emb_{\text{trig}}\in\mathbb R^d
 然后与模型参数一起训练，使触发器 Embedding 逐渐适应模型。
 
 训练结束后，利用余弦相似度，从模型词表中检索与优化后的 Embedding 最接近的 Top-q 个 Token：
+
 \[
 Trigger\_Tokens=
 TopQ_{w\in V}
@@ -115,11 +119,13 @@ TopQ_{w\in V}
 ### 3. Target Expert Injection：基于 Top-S 的动态 Top-K 路由约束
 
 设某层的全部 Expert 为 \(E\)，定位得到的敏感 Expert 集合为：
+
 \[
 E_{\text{target}}\subset E
 \]
 
 作者设计条件路由策略：
+
 \[
 \pi(X)=
 \begin{cases}
@@ -131,24 +137,28 @@ TopK(E;X),&X\in D_c
 具体来说：
 - 触发样本：只能在目标 Top-S Expert 中选择 Top-K。
 - 干净样本：仍然在全部 Expert 中选择 Top-K。
+
 这里需要区分 Top-S 和 Top-K：
 - Top-S：确定允许参与后门路由的候选 Expert 集合。
 - Top-K：Router 在这个候选集合中实际选择的 Expert 数量。
+
 技巧： 不直接固定触发样本的 Expert，而是限制 Router 的候选范围，保留候选集合内部的动态选择能力。同时，每层独立确定敏感 Expert，最终形成跨层的目标路由路径。
 
 ### 4. SenScore Ablation：验证敏感性指标的有效性
 
 作者设计了四种替代指标进行对比：
-指标	衡量内容
-Gradmean	梯度均值
-Graddiff	梯度差异
-Actmean	激活均值
-Actdiff	激活差异
-SenScore	梯度绝对差异与相对幅度的组合
+|指标	|衡量内容|
+|---|---|
+|Gradmean	|梯度均值|
+|Graddiff	|梯度差异|
+|Actmean	|激活均值|
+|Actdiff	|激活差异|
+|SenScore	|梯度绝对差异与相对幅度的组合|
 
 实验中，SenScore 达到：
 - ACC：86.75%
 - ASR：90.39%
+
 其他指标虽然也能取得较高 ASR，但正常准确率明显下降，最低只有 55.56%。
 
 这说明单纯考虑梯度或激活的某一项统计特征，不如同时考虑梯度差异和相对幅度，能够更好地平衡攻击成功率与正常任务能力。
@@ -158,7 +168,8 @@ SenScore	梯度绝对差异与相对幅度的组合
 作者分别验证了自适应触发器和敏感 Expert 定位的作用。
 - 固定触发器： 使用固定短语替代学习得到的触发器。其中一种配置 ACC 为 82.24%、ASR 为 21.34%；另一种配置 ASR 达到 100%，但 ACC 降至 49.88%。说明固定触发器难以同时保证攻击成功率和正常能力。
 - 随机 Expert 选择： 随机选择两组 Expert Cluster，得到的 ASR 分别为 53.42% 和 42.03%，明显低于 BadSwitch。
-这验证了两个组件的必要性：触发器需要适应模型表示，目标 Expert 也需要通过梯度敏感性分析进行定位。Zhao 等 - 2025 - Who Speaks for the Trigger Dynamic Expert Routing in Backdoored Mixture-of-Experts Transformers.pdf
+
+这验证了两个组件的必要性：触发器需要适应模型表示，目标 Expert 也需要通过梯度敏感性分析进行定位。
 
 
 ### 6. 实验评价与防御鲁棒性
@@ -167,10 +178,12 @@ SenScore	梯度绝对差异与相对幅度的组合
 - ACC：无触发器时的正常任务准确率。
 - ASR：有触发器时成功执行目标任务的比例。
 - PPL：生成任务的困惑度，用于衡量生成质量。
+
 主要实验包括：
 - 模型：Switch Transformer、QwenMoE、DeepSeekMoE。
 - 数据集：SST-2、AGNews、C4、ELI5。
 - 对照方法：BadNets、VPI（DPA）和 BadEdit（WPA）。
+
 此外，作者还测试了两种防御：
 1. Text-Level Detection： 使用 ONION，根据输入 Token 对困惑度的影响检测潜在触发器。
 2. Model-Level Retraining： 使用干净数据对被攻击模型进行部分微调。

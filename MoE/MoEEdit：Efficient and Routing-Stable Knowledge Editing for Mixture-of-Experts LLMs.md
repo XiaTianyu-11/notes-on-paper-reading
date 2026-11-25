@@ -35,29 +35,31 @@ Dense模型的知识编辑通常通过修改FFN的参数，将特定Key映射到
 
   因此，作者进一步采用更强的约束：直接保证Preservation Set在当前层的输出不发生变化，即令其隐藏表示扰动为零，从而避免后续Router输入发生变化。
 
-具体做法是：
-1. 对每个Expert分别收集Preservation Set对应的Key，构造特征矩阵。
-2. 对特征矩阵的协方差进行特征值分解，提取零空间对应的特征向量。
-3. 构造投影矩阵，将Expert参数更新限制在Preservation Features张成空间的正交补空间内。
+  具体做法是：
+
+    1. 对每个Expert分别收集Preservation Set对应的Key，构造特征矩阵。
+    2. 对特征矩阵的协方差进行特征值分解，提取零空间对应的特征向量。
+    3. 构造投影矩阵，将Expert参数更新限制在Preservation Features张成空间的正交补空间内。
+
   最终通过硬约束保证编辑不会改变Preservation Set在各Expert上的输出，而不需要额外优化Preservation Loss。
 
 - Efficient Optimization：通过随机分块坐标下降解决专家耦合和计算开销。
-
 作者首先将所有Expert的更新矩阵拼接，推导出整个MoE层的全局闭式解，但发现需要求解规模为 \(Nd_k\) 的大型线性系统，计算开销过高。
-
 因此提出Randomized BCD：
 1. 将每个Expert的更新矩阵作为一个独立优化块。
 2. 每次固定其他Expert的参数，只优化当前Expert。
 3. 通过扣除其他Expert已经提供的输出，计算当前Expert需要承担的剩余目标输出（Residual）。
 4. 将当前Expert的优化转化为一个小规模的岭回归问题，得到闭式解。
 5. 随机遍历Expert，反复更新，直到整体目标收敛。
-  这样既考虑了多个Expert对最终输出的共同影响，又避免了直接求解大型联合优化问题。
+
+这样既考虑了多个Expert对最终输出的共同影响，又避免了直接求解大型联合优化问题。
 
 ## 使用方法和技巧
 
 ### Key-Value Memory：将Expert视为独立的知识存储单元
 
 对于第 \(n\) 个Expert：
+
 \[
 E_n(u)=W_nk_n
 \]
@@ -66,7 +68,9 @@ E_n(u)=W_nk_n
 - \(k_n\)：Expert经过Up、Gate和激活函数得到的Key。
 - \(W_n=W_{\rm down}^{(n)}\)：Expert的输出投影矩阵。
 - \(W_nk_n\)：Expert输出的Value。
+
 MoE整体输出：
+
 \[
 v=\sum_{n=1}^{N}g_nW_nk_n
 \]
@@ -76,21 +80,25 @@ v=\sum_{n=1}^{N}g_nW_nk_n
 ### Routing Distribution Shift：分析路由漂移
 
 定义Router Embedding矩阵：
+
 \[
 E=[e_1,e_2,\ldots,e_N]
 \]
 
 Router logits：
+
 \[
 s=E^\top u
 \]
 
 当输入隐藏表示发生扰动 \(\delta u\) 时：
+
 \[
 \delta s=E^\top\delta u
 \]
 
 进一步通过Softmax的一阶泰勒展开：
+
 \[
 \delta g\approx J_{\rm sm}(s)E^\top\delta u
 \]
@@ -100,34 +108,41 @@ s=E^\top u
 此外，使用两种指标衡量路由稳定性：
 - Routing Similarity（RS）：使用Jaccard相似度衡量编辑前后Top-K Expert集合的重合程度。
 - KL Divergence：衡量编辑前后Router权重分布的差异。
+
 ### Per-Expert Null-Space Projection：专家级零空间投影
 
 对每个Expert分别收集Preservation Set的Key：
+
 \[
 K_n^0=[k_{i,n}]_{i\in\mathcal P}
 \]
 
 对其协方差矩阵进行特征值分解：
+
 \[
 K_n^0(K_n^0)^\top=U_n\Lambda_nU_n^\top
 \]
 
 选取接近零的特征值对应的特征向量 \(U_n^0\)，构造投影矩阵：
+
 \[
 P_n=U_n^0(U_n^0)^\top
 \]
 
 使得：
+
 \[
 P_nK_n^0\approx0
 \]
 
 将Expert更新重新参数化为：
+
 \[
 \boxed{\Delta_n=\hat{\Delta}_nP_n}
 \]
 
 从而保证：
+
 \[
 \Delta_nk_{i,n}
 =\hat{\Delta}_nP_nk_{i,n}
@@ -153,11 +168,13 @@ g_{i,\ell}
 \]
 
 其中：
+
 \[
 \tilde{k}_{i,n}=P_nk_{i,n}
 \]
 
 将当前Expert的优化转化为岭回归：
+
 \[
 \min_{\hat{\Delta}_n}
 \sum_i
@@ -169,11 +186,13 @@ r_i^{(-n)}
 \]
 
 通过求解正规方程得到闭式更新：
+
 \[
 \hat{\Delta}_n^\star=B_nM_n^{-1}
 \]
 
 其中：
+
 \[
 M_n=
 \sum_i g_{i,n}^2
@@ -188,6 +207,7 @@ B_n=
 \]
 
 最后将更新投影回允许的参数空间：
+
 \[
 \Delta_n^\star=\hat{\Delta}_n^\star P_n
 \]
